@@ -10,7 +10,7 @@ import (
 var svr *server.Server
 
 func initFunc() {
-	svr = server.New()
+	svr = server.New("0.0.0.0", 32261)
 	svr.Start()
 }
 

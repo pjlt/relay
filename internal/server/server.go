@@ -2,13 +2,17 @@ package server
 
 import (
 	"net"
+	"os"
+	"relay/internal/session"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	listener *net.UDPConn
-	stopChan chan struct{}
+	socket     *net.UDPConn
+	stopChan   chan struct{}
+	sessionMgr *session.SessionManager
 }
 
 func New(ip string, port uint16) *Server {
@@ -17,15 +21,17 @@ func New(ip string, port uint16) *Server {
 		logrus.Errorf("Parse ip %s failed", ip)
 		return nil
 	}
-	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: ipaddr, Port: int(port)})
+	socket, err := net.ListenUDP("udp", &net.UDPAddr{IP: ipaddr, Port: int(port)})
 	if err != nil {
 		logrus.Errorf("ListenUDP on %s:%d failed: %v", ip, port, err)
 		return nil
 	}
 	svr := &Server{
-		listener: listener,
-		stopChan: make(chan struct{}),
+		socket:     socket,
+		stopChan:   make(chan struct{}),
+		sessionMgr: session.NewManager(),
 	}
+	svr.sessionMgr.SetSendFunc(svr.sendMessage)
 	return svr
 }
 
@@ -42,5 +48,30 @@ func (svr *Server) PrintStats() {
 }
 
 func (svr *Server) start() {
-	//
+	data := make([]byte, 65536)
+	for {
+		select {
+		case <-svr.stopChan:
+			return
+		default:
+		}
+		svr.socket.SetDeadline(time.Now().Add(50 * time.Millisecond))
+		nread, remoteAddr, err := svr.socket.ReadFromUDP(data)
+		if err != nil {
+			if os.IsTimeout(err) {
+				continue
+			} else {
+				logrus.Errorf("ReadFromUDP error: %v", err)
+				os.Exit(-1)
+			}
+		}
+		if nread == 0 {
+			continue
+		}
+		svr.sessionMgr.HandlePacket(remoteAddr, data[:nread])
+	}
+}
+
+func (svr *Server) sendMessage(addr *net.UDPAddr, data []byte) {
+	svr.socket.WriteToUDP(data, addr)
 }
