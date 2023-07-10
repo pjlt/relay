@@ -35,7 +35,7 @@ func (s *Session) handleJoinRoomRequest(addr *net.UDPAddr, data []byte) {
 }
 
 func (s *Session) handleUnknownPacket(addr *net.UDPAddr, data []byte) {
-	// 转发给peer
+	// TODO: 限速
 	if addr.String() == s.FirstAddr.String() {
 		s.sendMessage(s.SecondAddr, data)
 	} else if addr.String() == s.SecondAddr.String() {

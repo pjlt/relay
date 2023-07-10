@@ -12,6 +12,7 @@ import (
 type Server struct {
 	socket     *net.UDPConn
 	stopChan   chan struct{}
+	stopedChan chan struct{}
 	sessionMgr *session.SessionManager
 }
 
@@ -29,6 +30,7 @@ func New(ip string, port uint16) *Server {
 	svr := &Server{
 		socket:     socket,
 		stopChan:   make(chan struct{}),
+		stopedChan: make(chan struct{}, 2),
 		sessionMgr: session.NewManager(),
 	}
 	svr.sessionMgr.SetSendFunc(svr.sendMessage)
@@ -43,11 +45,22 @@ func (svr *Server) Stop() {
 	svr.stopChan <- struct{}{}
 }
 
+func (svr *Server) ReadTimeout() time.Duration {
+	return 50 * time.Millisecond
+}
+
+func (svr *Server) StopedChan() chan struct{} {
+	return svr.stopedChan
+}
+
 func (svr *Server) PrintStats() {
 
 }
 
 func (svr *Server) start() {
+	defer func() {
+		svr.stopedChan <- struct{}{}
+	}()
 	data := make([]byte, 65536)
 	for {
 		select {
@@ -55,7 +68,7 @@ func (svr *Server) start() {
 			return
 		default:
 		}
-		svr.socket.SetDeadline(time.Now().Add(50 * time.Millisecond))
+		svr.socket.SetDeadline(time.Now().Add(svr.ReadTimeout()))
 		nread, remoteAddr, err := svr.socket.ReadFromUDP(data)
 		if err != nil {
 			if os.IsTimeout(err) {

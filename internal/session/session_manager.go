@@ -3,6 +3,7 @@ package session
 import (
 	"net"
 	"relay/internal/auth"
+	"relay/internal/conf"
 	"relay/internal/msg"
 
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ type SessionManager struct {
 }
 
 func NewManager() *SessionManager {
-	authenticator := auth.NewAuthenticator("/path/to/sqlite.db")
+	authenticator := auth.NewAuthenticator(conf.Xml.DB.Path)
 	if authenticator == nil {
 		return nil
 	}
@@ -35,8 +36,8 @@ func (mgr *SessionManager) SetSendFunc(sendFunc SendFunc) {
 
 func (mgr *SessionManager) HandlePacket(addr *net.UDPAddr, data []byte) {
 	addrStr := addr.String()
-	s := mgr.addrToSessions[addrStr]
-	if s == nil {
+	s, exists := mgr.addrToSessions[addrStr]
+	if !exists {
 		if msg.IsCreateRoomRequest(data) {
 			mgr.handleCreateRoomRequest(addr, data)
 		} else if msg.IsJoinRoomRequest(data) {
@@ -54,8 +55,10 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 		logrus.Debugf("ParseCreateRoomRequest failed")
 		return
 	}
-	ok := mgr.authenticator.Auth(request.Username, request.Integrity, data[:48])
+	ok := mgr.authenticator.Auth(request.Username, request.Integrity, request.Time, data[:48])
 	if !ok {
+		response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, "")
+		mgr.sendMessage(addr, response.ToBytes())
 		return
 	}
 	var room string
@@ -73,7 +76,7 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 	}
 	mgr.addrToSessions[addr.String()] = s
 	mgr.roomToSessions[room] = s
-	response := msg.NewCreateRoomResponse(room)
+	response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, room)
 	mgr.sendMessage(addr, response.ToBytes())
 }
 
@@ -96,6 +99,6 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 		return
 	}
 	mgr.addrToSessions[addr.String()] = s
-	response := msg.NewJoinRoomResponse()
+	response := msg.NewJoinRoomResponse(request.ID, msg.Err_OK, request.Room)
 	mgr.sendMessage(addr, response.ToBytes())
 }

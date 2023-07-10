@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<relay>
+
+    <log>
+        <path>/path/to/log</path>
+        <prefix>relay</prefix>
+        <level>debug</level>
+    </log>
+
+    <net>
+        <ip>0.0.0.0</ip>
+        <port>34465</port>
+    </net>
+
+    <db>
+        <path>/path/to/sqlite.db</path>
+    </db>
+
+</relay>

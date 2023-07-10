@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
@@ -31,14 +32,20 @@ func NewAuthenticator(path string) *Authenticator {
 	}
 }
 
-func (a *Authenticator) Auth(username string, integrity string, data []byte) bool {
+func (a *Authenticator) Auth(username string, integrity string, timestamp time.Time, data []byte) bool {
 	user := User{Username: username}
 	result := a.db.First(&user)
 	if result.Error != nil {
 		logrus.Errorf("Select table 'users' with {username:'%s'} failed with: %v", username, result.Error)
 		return false
 	}
+	gap := time.Now().Unix() - timestamp.Unix()
+	if gap < -3*60 || gap > 3*60 {
+		logrus.Warnf("Packet(user:%s) timestamp not in valid range: %d", username, gap)
+		return false
+	}
 	h := hmac.New(sha1.New, []byte(user.Password))
-	sum := string(h.Sum(data))
+	h.Write(data)
+	sum := string(h.Sum(nil))
 	return integrity == sum
 }
