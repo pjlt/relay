@@ -57,26 +57,28 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 	}
 	ok := mgr.authenticator.Auth(request.Username, request.Integrity, request.Time, data[:48])
 	if !ok {
-		response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, "")
+		response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, [16]byte{})
 		mgr.sendMessage(addr, response.ToBytes())
 		return
 	}
-	var room string
+	var roomUUID uuid.UUID
+	var roomStr string
 	for {
-		room = uuid.NewString()
-		if _, exists := mgr.roomToSessions[room]; exists {
+		roomUUID = uuid.New()
+		roomStr = roomUUID.String()
+		if _, exists := mgr.roomToSessions[roomStr]; exists {
 			continue
 		}
 		break
 	}
 	s := &Session{
-		Room:        room,
+		Room:        roomUUID,
 		FirstAddr:   addr,
 		sendMessage: mgr.sendMessage,
 	}
 	mgr.addrToSessions[addr.String()] = s
-	mgr.roomToSessions[room] = s
-	response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, room)
+	mgr.roomToSessions[roomStr] = s
+	response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, roomUUID)
 	mgr.sendMessage(addr, response.ToBytes())
 }
 
@@ -88,7 +90,7 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 	}
 	var s *Session
 	var exists bool
-	if s, exists = mgr.roomToSessions[request.Room]; !exists {
+	if s, exists = mgr.roomToSessions[request.Room.String()]; !exists {
 		logrus.Debugf("Received JoinRoomRequest with invalid room id:%s", request.Room)
 		return
 	}

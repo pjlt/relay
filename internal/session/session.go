@@ -4,11 +4,12 @@ import (
 	"net"
 	"relay/internal/msg"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
 type Session struct {
-	Room        string
+	Room        uuid.UUID
 	FirstAddr   *net.UDPAddr //向relay服务器申请room的地址
 	SecondAddr  *net.UDPAddr //向relay服务器加入room的地址
 	sendMessage SendFunc

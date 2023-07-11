@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -36,7 +38,6 @@ type baseMessage struct {
 }
 
 const baseMessageSize = 4*3 + 8 + 16*4
-const integritySize = 16
 
 type CreateRoomRequest struct {
 	ID        string
@@ -48,21 +49,21 @@ type CreateRoomRequest struct {
 type CreateRoomResponse struct {
 	ID      string
 	ErrCode int32
-	Room    string
+	Room    uuid.UUID
 }
 
 type JoinRoomRequest struct {
 	ID        string
 	Username  string
 	Time      time.Time
-	Room      string
+	Room      uuid.UUID
 	Integrity string
 }
 
 type JoinRoomResponse struct {
 	ID      string
 	ErrCode int32
-	Room    string
+	Room    uuid.UUID
 }
 
 func MessageType(data []byte) uint32 {
@@ -123,10 +124,14 @@ func ParseCreateRoomResponse(data []byte) *CreateRoomResponse {
 	reader := bytes.NewReader(data)
 	var msg baseMessage
 	binary.Read(reader, binary.LittleEndian, &msg)
+	room, err := uuid.FromBytes(msg.Room[:])
+	if err != nil {
+		return nil
+	}
 	response := CreateRoomResponse{
 		ID:      string(msg.ID[:]),
 		ErrCode: msg.Errcode,
-		Room:    string(msg.Room[:]),
+		Room:    room,
 	}
 	return &response
 }
@@ -138,11 +143,15 @@ func ParseJoinRoomRequest(data []byte) *JoinRoomRequest {
 	reader := bytes.NewReader(data)
 	var msg baseMessage
 	binary.Read(reader, binary.LittleEndian, &msg)
+	room, err := uuid.FromBytes(msg.Room[:])
+	if err != nil {
+		return nil
+	}
 	request := JoinRoomRequest{
 		ID:        string(msg.ID[:]),
 		Username:  string(msg.Username[:]),
 		Time:      time.Unix(msg.Time, 0),
-		Room:      string(msg.Room[:]),
+		Room:      room,
 		Integrity: string(msg.Integrity[:]),
 	}
 	return &request
@@ -155,15 +164,19 @@ func ParseJoinRoomResponse(data []byte) *JoinRoomResponse {
 	reader := bytes.NewReader(data)
 	var msg baseMessage
 	binary.Read(reader, binary.LittleEndian, &msg)
+	room, err := uuid.FromBytes(msg.Room[:])
+	if err != nil {
+		return nil
+	}
 	response := JoinRoomResponse{
 		ID:      string(msg.ID[:]),
 		ErrCode: msg.Errcode,
-		Room:    string(msg.Room[:]),
+		Room:    room,
 	}
 	return &response
 }
 
-func NewCreateRoomResponse(ID string, errCode int32, room string) *CreateRoomResponse {
+func NewCreateRoomResponse(ID string, errCode int32, room uuid.UUID) *CreateRoomResponse {
 	// 是否加入校验？
 	return &CreateRoomResponse{
 		ID:      ID,
@@ -172,7 +185,7 @@ func NewCreateRoomResponse(ID string, errCode int32, room string) *CreateRoomRes
 	}
 }
 
-func NewJoinRoomResponse(ID string, errCode int32, room string) *JoinRoomResponse {
+func NewJoinRoomResponse(ID string, errCode int32, room uuid.UUID) *JoinRoomResponse {
 	// 是否加入校验？
 	return &JoinRoomResponse{
 		ID:      ID,
@@ -188,7 +201,7 @@ func (m *CreateRoomResponse) ToBytes() []byte {
 	var msg baseMessage
 	msg.Errcode = m.ErrCode
 	copy(msg.ID[:], []byte(m.ID))
-	copy(msg.Room[:], []byte(m.Room))
+	copy(msg.Room[:], m.Room[:])
 	buffer := bytes.Buffer{}
 	binary.Write(&buffer, binary.LittleEndian, msg)
 	// integrity?
@@ -202,7 +215,7 @@ func (m *JoinRoomResponse) ToBytes() []byte {
 	var msg baseMessage
 	msg.Errcode = m.ErrCode
 	copy(msg.ID[:], []byte(m.ID))
-	copy(msg.Room[:], []byte(m.Room))
+	msg.Room = m.Room
 	buffer := bytes.Buffer{}
 	binary.Write(&buffer, binary.LittleEndian, msg)
 	// integrity?
