@@ -2,18 +2,18 @@
 <relay>
 
     <log>
-        <path>/path/to/log</path>
+        <path>log</path>
         <prefix>relay</prefix>
-        <level>debug</level>
+        <level>info</level>
     </log>
 
     <net>
         <ip>0.0.0.0</ip>
-        <port>34465</port>
+        <port>19000</port>
     </net>
 
     <db>
-        <path>/path/to/sqlite.db</path>
+        <path>user.db</path>
     </db>
 
 </relay>

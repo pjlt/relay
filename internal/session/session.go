@@ -38,8 +38,10 @@ func (s *Session) handleJoinRoomRequest(addr *net.UDPAddr, data []byte) {
 func (s *Session) handleUnknownPacket(addr *net.UDPAddr, data []byte) {
 	// TODO: 限速
 	if addr.String() == s.FirstAddr.String() {
+		logrus.Debug("Relay message to SecondAddr")
 		s.sendMessage(s.SecondAddr, data)
 	} else if addr.String() == s.SecondAddr.String() {
+		logrus.Debug("Relay message to FirstAddr")
 		s.sendMessage(s.FirstAddr, data)
 	} else {
 		logrus.Debugf("Room(%s) recieved relay message from unknown address(%s)", s.Room, addr.String())

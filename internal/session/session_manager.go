@@ -26,6 +26,7 @@ func NewManager() *SessionManager {
 	}
 	return &SessionManager{
 		addrToSessions: make(map[string]*Session),
+		roomToSessions: make(map[string]*Session),
 		authenticator:  authenticator,
 	}
 }
@@ -40,8 +41,10 @@ func (mgr *SessionManager) HandlePacket(addr *net.UDPAddr, data []byte) {
 	if !exists {
 		if msg.IsCreateRoomRequest(data) {
 			mgr.handleCreateRoomRequest(addr, data)
+			return
 		} else if msg.IsJoinRoomRequest(data) {
 			mgr.handleJoinRoomRequest(addr, data)
+			return
 		}
 		logrus.Debugf("Received packet from %s, but it isn't CreateRoomRequest/JoinRoomRequest", addrStr)
 	} else {
@@ -55,7 +58,7 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 		logrus.Debugf("ParseCreateRoomRequest failed")
 		return
 	}
-	ok := mgr.authenticator.Auth(request.Username, request.Integrity, request.Time, data[:48])
+	ok := mgr.authenticator.Auth(request.Username, request.Integrity, request.Time, data[:msg.BaseMessageSize-msg.IntegritySize])
 	if !ok {
 		response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, [16]byte{})
 		mgr.sendMessage(addr, response.ToBytes())
@@ -78,7 +81,8 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 	}
 	mgr.addrToSessions[addr.String()] = s
 	mgr.roomToSessions[roomStr] = s
-	response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, roomUUID)
+	response := msg.NewCreateRoomResponse(request.ID, msg.Err_OK, roomUUID)
+	logrus.Debugf("Send CreateRoomResponse to %s", addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }
 
@@ -102,5 +106,6 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 	}
 	mgr.addrToSessions[addr.String()] = s
 	response := msg.NewJoinRoomResponse(request.ID, msg.Err_OK, request.Room)
+	logrus.Debugf("Send JoinRoomResponse to %s", addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }

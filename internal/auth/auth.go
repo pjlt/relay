@@ -47,5 +47,6 @@ func (a *Authenticator) Auth(username string, integrity string, timestamp time.T
 	h := hmac.New(sha1.New, []byte(user.Password))
 	h.Write(data)
 	sum := string(h.Sum(nil))
+	logrus.Debug("Integrity:", integrity, ", Sum:", sum)
 	return integrity == sum
 }
