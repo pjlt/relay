@@ -72,6 +72,7 @@ func (svr *Server) start() {
 		nread, remoteAddr, err := svr.socket.ReadFromUDP(data)
 		if err != nil {
 			if os.IsTimeout(err) {
+				svr.sessionMgr.HandleIdle()
 				continue
 			} else {
 				logrus.Errorf("ReadFromUDP error: %v", err)

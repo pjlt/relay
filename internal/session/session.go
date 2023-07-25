@@ -2,16 +2,18 @@ package session
 
 import (
 	"net"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
 type Session struct {
-	Room        uuid.UUID
-	FirstAddr   *net.UDPAddr //向relay服务器申请room的地址
-	SecondAddr  *net.UDPAddr //向relay服务器加入room的地址
-	sendMessage SendFunc
+	Room           uuid.UUID
+	FirstAddr      *net.UDPAddr //向relay服务器申请room的地址
+	SecondAddr     *net.UDPAddr //向relay服务器加入room的地址
+	LastActiveTime time.Time
+	sendMessage    SendFunc
 }
 
 func (s *Session) RelayPacket(addr *net.UDPAddr, data []byte) {
