@@ -3,6 +3,7 @@ package msg
 import (
 	"bytes"
 	"encoding/binary"
+	"net"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,11 +16,15 @@ const (
 	TypeCreateRoomResponse uint32 = 0x123002
 	TypeJoinRoomRequest    uint32 = 0x123003
 	TypeJoinRoomResponse   uint32 = 0x123004
+	TypeReflexRequest      uint32 = 0x124001
+	TypeReflexResponse     uint32 = 0x124002
 )
 
 const (
-	Err_OK         int32 = 0
-	Err_AuthFailed int32 = 1
+	Err_OK             int32 = 0
+	Err_AuthFailed     int32 = 1
+	Err_AddressInvalid int32 = 2
+	Err_TimeInvalid    int32 = 3
 )
 
 const (
@@ -32,19 +37,23 @@ type baseMessage struct {
 	Type      uint32
 	Errcode   int32
 	Time      int64
+	IP        uint32
+	Port      uint32
 	ID        [16]byte
 	Username  [16]byte
 	Room      [16]byte
 	Integrity [20]byte
 }
 
-const BaseMessageSize = 4*3 + 8 + 16*3 + 20
+const BaseMessageSize = 4*5 + 8 /*Time*/ + 16*3 + 20 /*Integrity*/
 const IntegritySize = 20
 
 type CreateRoomRequest struct {
 	ID        string
 	Username  string
 	Time      time.Time
+	IP        uint32
+	Port      uint32
 	Integrity string
 }
 
@@ -66,6 +75,10 @@ type JoinRoomResponse struct {
 	ID      string
 	ErrCode int32
 	Room    uuid.UUID
+}
+
+type ReflexResponse struct {
+	Addr *net.UDPAddr
 }
 
 func clen(data []byte) int {
@@ -95,7 +108,12 @@ func MessageType(data []byte) uint32 {
 		return TypeUnknown
 	}
 	binary.Read(reader, binary.LittleEndian, &msgType)
-	if msgType == TypeCreateRoomRequest || msgType == TypeCreateRoomResponse || msgType == TypeJoinRoomRequest || msgType == TypeJoinRoomResponse {
+	if msgType == TypeCreateRoomRequest ||
+		msgType == TypeCreateRoomResponse ||
+		msgType == TypeJoinRoomRequest ||
+		msgType == TypeJoinRoomResponse ||
+		msgType == TypeReflexRequest ||
+		msgType == TypeReflexResponse {
 		return msgType
 	} else {
 		logrus.Debugf("msgType == 0x%x", msgType)
@@ -119,8 +137,16 @@ func IsJoinRoomResponse(data []byte) bool {
 	return MessageType(data) == TypeJoinRoomResponse
 }
 
+func IsReflexRequest(data []byte) bool {
+	return MessageType(data) == TypeReflexRequest
+}
+
+func IsReflexResponse(data []byte) bool {
+	return MessageType(data) == TypeReflexResponse
+}
+
 func ParseCreateRoomRequest(data []byte) *CreateRoomRequest {
-	if len(data) < 84 {
+	if len(data) != BaseMessageSize {
 		return nil
 	}
 	reader := bytes.NewReader(data)
@@ -130,6 +156,8 @@ func ParseCreateRoomRequest(data []byte) *CreateRoomRequest {
 		ID:        string(msg.ID[:]),
 		Username:  string(msg.Username[:clen(msg.Username[:])]),
 		Time:      time.Unix(msg.Time, 0),
+		IP:        msg.IP,
+		Port:      msg.Port,
 		Integrity: string(msg.Integrity[:]),
 	}
 	return &request
@@ -212,6 +240,12 @@ func NewJoinRoomResponse(ID string, errCode int32, room uuid.UUID) *JoinRoomResp
 	}
 }
 
+func NewReflexResponse(addr *net.UDPAddr) *ReflexResponse {
+	return &ReflexResponse{
+		Addr: addr,
+	}
+}
+
 func (m *CreateRoomResponse) ToBytes() []byte {
 	if len(m.ID) != 16 || len(m.Room) != 16 {
 		return nil
@@ -245,5 +279,17 @@ func (m *JoinRoomResponse) ToBytes() []byte {
 	buffer := bytes.Buffer{}
 	binary.Write(&buffer, binary.LittleEndian, msg)
 	// integrity?
+	return buffer.Bytes()
+}
+
+func (m *ReflexResponse) ToBytes() []byte {
+	msg := baseMessage{
+		Magic: MsgMagic,
+		Type:  TypeReflexResponse,
+		IP:    binary.LittleEndian.Uint32(m.Addr.IP),
+		Port:  uint32(m.Addr.Port),
+	}
+	buffer := bytes.Buffer{}
+	binary.Write(&buffer, binary.LittleEndian, msg)
 	return buffer.Bytes()
 }

@@ -39,7 +39,10 @@ func (mgr *SessionManager) HandlePacket(addr *net.UDPAddr, data []byte) {
 	addrStr := addr.String()
 	s, exists := mgr.addrToSessions[addrStr]
 	if !exists {
-		if msg.IsCreateRoomRequest(data) {
+		if msg.IsReflexRequest(data) {
+			mgr.handleReflexRequest(addr, data)
+			return
+		} else if msg.IsCreateRoomRequest(data) {
 			mgr.handleCreateRoomRequest(addr, data)
 			return
 		} else if msg.IsJoinRoomRequest(data) {
@@ -58,9 +61,9 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 		logrus.Debugf("ParseCreateRoomRequest failed")
 		return
 	}
-	ok := mgr.authenticator.Auth(request.Username, request.Integrity, request.Time, data[:msg.BaseMessageSize-msg.IntegritySize])
-	if !ok {
-		response := msg.NewCreateRoomResponse(request.ID, msg.Err_AuthFailed, [16]byte{})
+	errCode := mgr.authenticator.Auth(addr, request, data[:msg.BaseMessageSize-msg.IntegritySize])
+	if errCode != msg.Err_OK {
+		response := msg.NewCreateRoomResponse(request.ID, errCode, [16]byte{})
 		mgr.sendMessage(addr, response.ToBytes())
 		return
 	}
@@ -82,7 +85,7 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 	mgr.addrToSessions[addr.String()] = s
 	mgr.roomToSessions[roomStr] = s
 	response := msg.NewCreateRoomResponse(request.ID, msg.Err_OK, roomUUID)
-	logrus.Debugf("Send CreateRoomResponse to %s", addr.String())
+	logrus.Infof("Send CreateRoomResponse(%s) to %s", roomStr, addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }
 
@@ -106,6 +109,12 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 	}
 	mgr.addrToSessions[addr.String()] = s
 	response := msg.NewJoinRoomResponse(request.ID, msg.Err_OK, request.Room)
-	logrus.Debugf("Send JoinRoomResponse to %s", addr.String())
+	logrus.Infof("Send JoinRoomResponse(%s) to %s", request.Room.String(), addr.String())
+	mgr.sendMessage(addr, response.ToBytes())
+}
+
+func (mgr *SessionManager) handleReflexRequest(addr *net.UDPAddr, data []byte) {
+	response := msg.NewReflexResponse(addr)
+	logrus.Debugf("Send ReflexResponse to %s", addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }
