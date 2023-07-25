@@ -21,3 +21,5 @@ main
 
 # Go workspace file
 go.work
+
+.VSCodeCounter

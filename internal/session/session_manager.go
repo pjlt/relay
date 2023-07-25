@@ -36,22 +36,18 @@ func (mgr *SessionManager) SetSendFunc(sendFunc SendFunc) {
 }
 
 func (mgr *SessionManager) HandlePacket(addr *net.UDPAddr, data []byte) {
-	addrStr := addr.String()
-	s, exists := mgr.addrToSessions[addrStr]
-	if !exists {
-		if msg.IsReflexRequest(data) {
-			mgr.handleReflexRequest(addr, data)
-			return
-		} else if msg.IsCreateRoomRequest(data) {
-			mgr.handleCreateRoomRequest(addr, data)
-			return
-		} else if msg.IsJoinRoomRequest(data) {
-			mgr.handleJoinRoomRequest(addr, data)
-			return
-		}
-		logrus.Debugf("Received packet from %s, but it isn't CreateRoomRequest/JoinRoomRequest", addrStr)
-	} else {
-		s.handlePacket(addr, data)
+	msgType := msg.MessageType(data)
+	switch msgType {
+	case msg.TypeCreateRoomRequest:
+		mgr.handleCreateRoomRequest(addr, data)
+	case msg.TypeJoinRoomRequest:
+		mgr.handleJoinRoomRequest(addr, data)
+	case msg.TypeReflexRequest:
+		mgr.handleReflexRequest(addr, data)
+	case msg.TypeUnknown:
+		fallthrough
+	default:
+		mgr.handleUnknownPacket(addr, data)
 	}
 }
 
@@ -67,25 +63,28 @@ func (mgr *SessionManager) handleCreateRoomRequest(addr *net.UDPAddr, data []byt
 		mgr.sendMessage(addr, response.ToBytes())
 		return
 	}
-	var roomUUID uuid.UUID
-	var roomStr string
-	for {
-		roomUUID = uuid.New()
-		roomStr = roomUUID.String()
-		if _, exists := mgr.roomToSessions[roomStr]; exists {
-			continue
+	s, exists := mgr.addrToSessions[addr.String()]
+	if !exists {
+		var roomUUID uuid.UUID
+		var roomStr string
+		for {
+			roomUUID = uuid.New()
+			roomStr = roomUUID.String()
+			if _, exists := mgr.roomToSessions[roomStr]; exists {
+				continue
+			}
+			break
 		}
-		break
+		s = &Session{
+			Room:        roomUUID,
+			FirstAddr:   addr,
+			sendMessage: mgr.sendMessage,
+		}
+		mgr.addrToSessions[addr.String()] = s
+		mgr.roomToSessions[roomStr] = s
 	}
-	s := &Session{
-		Room:        roomUUID,
-		FirstAddr:   addr,
-		sendMessage: mgr.sendMessage,
-	}
-	mgr.addrToSessions[addr.String()] = s
-	mgr.roomToSessions[roomStr] = s
-	response := msg.NewCreateRoomResponse(request.ID, msg.Err_OK, roomUUID)
-	logrus.Infof("Send CreateRoomResponse(%s) to %s", roomStr, addr.String())
+	response := msg.NewCreateRoomResponse(request.ID, msg.Err_OK, s.Room)
+	logrus.Infof("Send CreateRoomResponse(%s) to %s", s.Room.String(), addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }
 
@@ -101,13 +100,16 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 		logrus.Debugf("Received JoinRoomRequest with invalid room id:%s", request.Room)
 		return
 	}
-	s.SecondAddr = addr
-	// TODO: 鉴权
-	if _, exists = mgr.addrToSessions[addr.String()]; exists {
-		logrus.Errorf("Received JoinRoomRequest(room:%s) from addrress(%s), but %s already exist for another session", request.Room, addr.String(), addr.String())
-		return
+	s2, exists := mgr.addrToSessions[addr.String()]
+	if exists {
+		if s2.SecondAddr == nil || s2.SecondAddr.String() != addr.String() {
+			logrus.Errorf("Received JoinRoomRequest(room:%s) from addrress(%s), but another addrress already join the session", request.Room, addr.String())
+			return
+		}
+	} else {
+		s.SecondAddr = addr
+		mgr.addrToSessions[addr.String()] = s
 	}
-	mgr.addrToSessions[addr.String()] = s
 	response := msg.NewJoinRoomResponse(request.ID, msg.Err_OK, request.Room)
 	logrus.Infof("Send JoinRoomResponse(%s) to %s", request.Room.String(), addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
@@ -117,4 +119,12 @@ func (mgr *SessionManager) handleReflexRequest(addr *net.UDPAddr, data []byte) {
 	response := msg.NewReflexResponse(addr)
 	logrus.Debugf("Send ReflexResponse to %s", addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
+}
+
+func (mgr *SessionManager) handleUnknownPacket(addr *net.UDPAddr, data []byte) {
+	if s, exists := mgr.addrToSessions[addr.String()]; exists {
+		s.RelayPacket(addr, data)
+	} else {
+		logrus.Debugf("Received unknown packet from %s", addr.String())
+	}
 }
