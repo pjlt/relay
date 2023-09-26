@@ -12,6 +12,11 @@
         <port>19000</port>
     </net>
 
+    <mgr>
+        <ip>0.0.0.0</ip>
+        <port>19001</port>
+    </mgr>
+
     <db>
         <path>user.db</path>
     </db>

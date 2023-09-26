@@ -35,32 +35,19 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"net"
+	"relay/internal/db"
 	"relay/internal/msg"
 
-	"github.com/glebarez/sqlite"
 	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
 
 type Authenticator struct {
-	db *gorm.DB
-}
-
-// 结构体'User'默认对应数据库表'users'
-type User struct {
-	ID       string
-	Username string
-	Password string
+	//db *gorm.DB
 }
 
 func NewAuthenticator(path string) *Authenticator {
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
-	if err != nil {
-		logrus.Errorf("Failed to open sqlite database(%s): %v", path, err)
-		return nil
-	}
 	return &Authenticator{
-		db: db,
+		//db: db.DB,
 	}
 }
 
@@ -70,19 +57,11 @@ func (a *Authenticator) Auth(addr *net.UDPAddr, request *msg.CreateRoomRequest, 
 		logrus.Warnf("Packet(user:%s) address invalid", request.Username)
 		return msg.Err_AddressInvalid
 	}
-	// 校验时间没有意义
-	// gap := time.Now().Unix() - request.Time.Unix()
-	// if gap < -3*60 || gap > 3*60 {
-	// 	logrus.Warnf("Packet(user:%s) timestamp not in valid range: %d", request.Username, gap)
-	// 	return msg.Err_TimeInvalid
-	// }
-	user := User{Username: request.Username}
-	result := a.db.First(&user)
-	if result.Error != nil {
-		logrus.Errorf("Select table 'users' with {username:'%s'} failed with: %v", request.Username, result.Error)
+	user, err := db.QueryByUserName(request.Username)
+	if err != nil {
 		return msg.Err_AuthFailed
 	}
-	h := hmac.New(sha1.New, []byte(user.Password))
+	h := hmac.New(sha1.New, []byte(user.Key))
 	h.Write(data)
 	sum := string(h.Sum(nil))
 	logrus.Debug("Integrity:", request.Integrity, ", Sum:", sum)

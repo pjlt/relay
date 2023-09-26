@@ -28,63 +28,76 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package conf
+package db
 
 import (
-	"encoding/xml"
-	"flag"
-	"io/ioutil"
+	"fmt"
+	"relay/internal/conf"
+
+	"github.com/glebarez/sqlite"
+	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
-const defaultXmlPath = "/path/to/relay.xml"
+var dbConn *gorm.DB
 
-var Xml relayConf
-
-type relayConf struct {
-	Log logConf `xml:"log"`
-	Net netConf `xml:"net"`
-	Mgr mgrConf `xml:"mgr"`
-	DB  dbConf  `xml:"db"`
-}
-
-type logConf struct {
-	Path   string `xml:"path"`
-	Prefix string `xml:"prefix"`
-	Level  string `xml:"level"`
-}
-
-type netConf struct {
-	ListenPort uint16 `xml:"port"`
-	ListenIP   string `xml:"ip"`
-}
-
-type mgrConf struct {
-	ListenPort uint16 `xml:"port"`
-	ListenIP   string `xml:"ip"`
-}
-
-type dbConf struct {
-	Path string `xml:"path"`
+// 结构体'User'默认对应数据库表'users'
+type User struct {
+	ID       string
+	Username string
+	Key      string
 }
 
 func init() {
-	xmlPath := flag.String("c", defaultXmlPath, "配置文件路径")
-	flag.Parse()
-	if err := loadConfig(*xmlPath); err != nil {
-		panic(err)
+	db, err := gorm.Open(sqlite.Open(conf.Xml.DB.Path), &gorm.Config{})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to open sqlite database(%s): %v", conf.Xml.DB.Path, err))
 	}
+	dbConn = db
 }
 
-func loadConfig(xmlPath string) error {
-	content, err := ioutil.ReadFile(xmlPath)
-	if err != nil {
-		return err
+func QueryByUserName(username string) (*User, error) {
+	user := User{Username: username}
+	result := dbConn.First(&user)
+	if result.Error != nil {
+		logrus.Errorf("Select table 'users' with {username:'%s'} failed with: %v", username, result.Error)
+		return nil, result.Error
 	}
-	cfg := relayConf{}
-	err = xml.Unmarshal(content, &cfg)
-	if err != nil {
-		return err
+	return &user, nil
+}
+
+func QueryUserList(index int) ([]User, error) {
+	const kLimit int = 10
+	var users []User
+	result := dbConn.Limit(kLimit).Offset(index).Find(&users)
+	if result.Error != nil {
+		logrus.Errorf("Query table 'users' with limit(%d) offset(%d) failed with: %v", kLimit, index, result.Error)
+		return nil, result.Error
 	}
-	Xml = cfg
+	return users, nil
+}
+
+func AddUser(username string, key string) error {
+	user := User{
+		Username: username,
+		Key:      key,
+	}
+	result := dbConn.Create(&user)
+	if result.Error != nil {
+		logrus.Errorf("Insert record to table 'users' with {username:%s, key:%s} failed", username, key)
+		return result.Error
+	}
+	return nil
+}
+
+func DelUser(username string) error {
+	user := User{
+		Username: username,
+	}
+	result := dbConn.Delete(&user)
+	if result.Error != nil {
+		logrus.Errorf("Delete record from table 'users' with {username:%s} failed", username)
+		return result.Error
+	}
 	return nil
 }
