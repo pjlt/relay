@@ -5,6 +5,8 @@
         <path>log</path>
         <prefix>relay</prefix>
         <level>info</level>
+        <maxsize>10</maxsize>
+        <maxage>30</maxage>
     </log>
 
     <net>
@@ -15,6 +17,7 @@
     <mgr>
         <ip>0.0.0.0</ip>
         <port>19001</port>
+        <mode>release</mode>
     </mgr>
 
     <db>

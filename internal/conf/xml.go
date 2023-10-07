@@ -33,10 +33,40 @@ package conf
 import (
 	"encoding/xml"
 	"flag"
-	"io/ioutil"
+	"fmt"
+	"os"
 )
 
 const defaultXmlPath = "/path/to/relay.xml"
+const defaultXmlConfig = `
+<?xml version="1.0" encoding="UTF-8" ?>
+<relay>
+
+    <log>
+        <path>log</path>
+        <prefix>relay</prefix>
+        <level>info</level>
+		<maxsize>10</maxsize>
+        <maxage>30</maxage>
+    </log>
+
+    <net>
+        <ip>0.0.0.0</ip>
+        <port>19000</port>
+    </net>
+
+    <mgr>
+        <ip>0.0.0.0</ip>
+        <port>19001</port>
+		<mode>release</mode>
+    </mgr>
+
+    <db>
+        <path>user.db</path>
+    </db>
+
+</relay>
+`
 
 var Xml relayConf
 
@@ -48,9 +78,11 @@ type relayConf struct {
 }
 
 type logConf struct {
-	Path   string `xml:"path"`
-	Prefix string `xml:"prefix"`
-	Level  string `xml:"level"`
+	Path    string `xml:"path"`
+	Prefix  string `xml:"prefix"`
+	Level   string `xml:"level"`
+	MaxSize int    `xml:"maxsize"`
+	MaxAge  int    `xml:"maxage"`
 }
 
 type netConf struct {
@@ -61,6 +93,7 @@ type netConf struct {
 type mgrConf struct {
 	ListenPort uint16 `xml:"port"`
 	ListenIP   string `xml:"ip"`
+	Mode       string `xml:"mode"`
 }
 
 type dbConf struct {
@@ -76,9 +109,10 @@ func init() {
 }
 
 func loadConfig(xmlPath string) error {
-	content, err := ioutil.ReadFile(xmlPath)
+	content, err := os.ReadFile(xmlPath)
 	if err != nil {
-		return err
+		fmt.Printf("Read config from '%s' failed, using default config.\n\n", xmlPath)
+		content = []byte(defaultXmlConfig)
 	}
 	cfg := relayConf{}
 	err = xml.Unmarshal(content, &cfg)

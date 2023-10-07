@@ -31,7 +31,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"path"
 	"relay/internal/app"
 	"relay/internal/conf"
 	"relay/internal/mgr"
@@ -40,6 +42,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var relaySvr *server.Server
@@ -70,10 +73,45 @@ func dumpFunc() {
 	}
 }
 
+var levelList = []string{
+	"PANIC",
+	"FATAL",
+	"ERROR",
+	"WARN",
+	"INFO",
+	"DEBUG",
+	"TRACE",
+}
+
+type theLogFormater struct{}
+
+func (formater *theLogFormater) Format(entry *logrus.Entry) ([]byte, error) {
+	var b *bytes.Buffer
+	if entry.Buffer != nil {
+		b = entry.Buffer
+	} else {
+		b = &bytes.Buffer{}
+	}
+	level := levelList[int(entry.Level)]
+	strList := strings.Split(entry.Caller.File, "/")
+	fileName := strList[len(strList)-1]
+	b.WriteString(fmt.Sprintf("[%s][%s][%s:%d] %s\n",
+		entry.Time.Format("2006/01/02 15:04:05.678"), level, fileName,
+		entry.Caller.Line, entry.Message))
+	return b.Bytes(), nil
+}
+
 func initLogger() {
-	//logrus.SetFormatter(&logrus.TextFormatter{})
-	//logrus.SetOutput()
+	logger := &lumberjack.Logger{
+		Filename: path.Join(conf.Xml.Log.Path, conf.Xml.Log.Prefix+".log"),
+		MaxSize:  conf.Xml.Log.MaxSize,
+		MaxAge:   conf.Xml.Log.MaxAge,
+	}
+	logrus.SetReportCaller(true)
+	logrus.SetFormatter(&theLogFormater{})
+	logrus.SetOutput(logger)
 	logrus.SetLevel(convertLogLevel(conf.Xml.Log.Level))
+	logrus.Info("Log system initialized")
 }
 
 func convertLogLevel(level string) logrus.Level {
@@ -89,6 +127,10 @@ func convertLogLevel(level string) logrus.Level {
 		return logrus.WarnLevel
 	case "error":
 		return logrus.ErrorLevel
+	case "fatal":
+		return logrus.FatalLevel
+	case "panic":
+		return logrus.PanicLevel
 	default:
 		panic(fmt.Sprintf("Unknown log level %s", level))
 	}

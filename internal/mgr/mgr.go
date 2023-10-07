@@ -37,6 +37,7 @@ import (
 	"relay/internal/conf"
 	"relay/internal/db"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -90,7 +91,18 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+func toGinMode(mode string) string {
+	mode = strings.ToLower(mode)
+	if mode == gin.ReleaseMode || mode == gin.DebugMode || mode == gin.TestMode {
+		return mode
+	} else {
+		logrus.Warnf("Unknown gin mode(%s), default to release mode", mode)
+		return gin.ReleaseMode
+	}
+}
+
 func New() *Server {
+	gin.SetMode(toGinMode(conf.Xml.Mgr.Mode))
 	return &Server{
 		router: gin.Default(),
 	}
@@ -140,7 +152,6 @@ func (svr *Server) userAdd(ctx *gin.Context) {
 }
 
 func (svr *Server) userList(ctx *gin.Context) {
-	logrus.Info("userList")
 	index, err := strconv.Atoi(ctx.PostForm("index"))
 	if err != nil {
 		logrus.Info("userList parse index failed")

@@ -24,3 +24,7 @@ go.work
 
 .VSCodeCounter
 .vscode
+
+/log
+
+user.db
