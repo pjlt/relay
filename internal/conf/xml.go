@@ -43,6 +43,7 @@ var Xml relayConf
 type relayConf struct {
 	Log logConf `xml:"log"`
 	Net netConf `xml:"net"`
+	Mgr mgrConf `xml:"mgr"`
 	DB  dbConf  `xml:"db"`
 }
 
@@ -53,6 +54,11 @@ type logConf struct {
 }
 
 type netConf struct {
+	ListenPort uint16 `xml:"port"`
+	ListenIP   string `xml:"ip"`
+}
+
+type mgrConf struct {
 	ListenPort uint16 `xml:"port"`
 	ListenIP   string `xml:"ip"`
 }

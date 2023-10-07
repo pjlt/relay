@@ -1,0 +1,4 @@
+POST http://127.0.0.1:19001/user/del
+Content-Type: application/x-www-form-urlencoded
+
+username=username112

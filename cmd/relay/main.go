@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"relay/internal/app"
 	"relay/internal/conf"
+	"relay/internal/mgr"
 	"relay/internal/server"
 	"strings"
 	"time"
@@ -41,28 +42,31 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var svr *server.Server
+var relaySvr *server.Server
+var mgrSvr *mgr.Server
 
 func initFunc() {
-	svr = server.New(conf.Xml.Net.ListenIP, conf.Xml.Net.ListenPort)
-	svr.Start()
+	relaySvr = server.New(conf.Xml.Net.ListenIP, conf.Xml.Net.ListenPort)
+	relaySvr.Start()
+	mgrSvr = mgr.New()
+	mgrSvr.Start()
 }
 
 func uninitFunc() {
-	if svr != nil {
-		svr.Stop()
-		timer := time.NewTimer(svr.ReadTimeout() + time.Millisecond*10)
+	if relaySvr != nil {
+		relaySvr.Stop()
+		timer := time.NewTimer(relaySvr.ReadTimeout() + time.Millisecond*10)
 		select {
 		case <-timer.C:
-		case <-svr.StopedChan():
+		case <-relaySvr.StopedChan():
 		}
-		svr = nil
+		relaySvr = nil
 	}
 }
 
 func dumpFunc() {
-	if svr != nil {
-		svr.PrintStats()
+	if relaySvr != nil {
+		relaySvr.PrintStats()
 	}
 }
 
