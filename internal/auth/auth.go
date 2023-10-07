@@ -61,7 +61,7 @@ func (a *Authenticator) Auth(addr *net.UDPAddr, request *msg.CreateRoomRequest, 
 	if err != nil {
 		return msg.Err_AuthFailed
 	}
-	h := hmac.New(sha1.New, []byte(user.Key))
+	h := hmac.New(sha1.New, []byte(user.Password))
 	h.Write(data)
 	sum := string(h.Sum(nil))
 	logrus.Debug("Integrity:", request.Integrity, ", Sum:", sum)

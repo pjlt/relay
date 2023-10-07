@@ -43,9 +43,9 @@ var dbConn *gorm.DB
 
 // 结构体'User'默认对应数据库表'users'
 type User struct {
-	ID       string
+	gorm.Model
 	Username string
-	Key      string
+	Password string
 }
 
 func init() {
@@ -53,6 +53,7 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to open sqlite database(%s): %v", conf.Xml.DB.Path, err))
 	}
+	db.AutoMigrate(&User{})
 	dbConn = db
 }
 
@@ -77,14 +78,14 @@ func QueryUserList(index int) ([]User, error) {
 	return users, nil
 }
 
-func AddUser(username string, key string) error {
+func AddUser(username string, password string) error {
 	user := User{
 		Username: username,
-		Key:      key,
+		Password: password,
 	}
 	result := dbConn.Create(&user)
 	if result.Error != nil {
-		logrus.Errorf("Insert record to table 'users' with {username:%s, key:%s} failed", username, key)
+		logrus.Errorf("Insert record to table 'users' with {username:%s, key:%s} failed", username, password)
 		return result.Error
 	}
 	return nil
@@ -94,7 +95,7 @@ func DelUser(username string) error {
 	user := User{
 		Username: username,
 	}
-	result := dbConn.Delete(&user)
+	result := dbConn.Where(&user).Delete(&user)
 	if result.Error != nil {
 		logrus.Errorf("Delete record from table 'users' with {username:%s} failed", username)
 		return result.Error

@@ -75,7 +75,7 @@ type statSessionData struct {
 
 type userInfo struct {
 	Username string `json:"username"`
-	Key      string `json:"key"`
+	Password string `json:"password"`
 }
 
 type userListData struct {
@@ -140,8 +140,10 @@ func (svr *Server) userAdd(ctx *gin.Context) {
 }
 
 func (svr *Server) userList(ctx *gin.Context) {
+	logrus.Info("userList")
 	index, err := strconv.Atoi(ctx.PostForm("index"))
 	if err != nil {
+		logrus.Info("userList parse index failed")
 		return
 	}
 	users, err := db.QueryUserList(index)
@@ -156,7 +158,7 @@ func (svr *Server) userList(ctx *gin.Context) {
 	for i := 0; i < len(users); i++ {
 		userData.Users = append(userData.Users, userInfo{
 			Username: users[i].Username,
-			Key:      users[i].Key,
+			Password: users[i].Password,
 		})
 	}
 	ctx.JSON(http.StatusOK, responseStruct{
