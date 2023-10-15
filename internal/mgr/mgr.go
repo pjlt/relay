@@ -31,9 +31,11 @@
 package mgr
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"relay/internal/common"
 	"relay/internal/conf"
 	"relay/internal/db"
 	"strconv"
@@ -43,16 +45,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
-
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randSeq(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
-}
 
 type responseStruct struct {
 	Status  int         `json:"status"`
@@ -84,7 +76,9 @@ type userListData struct {
 }
 
 type Server struct {
-	router *gin.Engine
+	router     *gin.Engine
+	stopedChan chan struct{}
+	httpSvr    *http.Server
 }
 
 func init() {
@@ -104,7 +98,8 @@ func toGinMode(mode string) string {
 func New() *Server {
 	gin.SetMode(toGinMode(conf.Xml.Mgr.Mode))
 	return &Server{
-		router: gin.Default(),
+		router:     gin.Default(),
+		stopedChan: make(chan struct{}, 2),
 	}
 }
 
@@ -116,7 +111,31 @@ func (svr *Server) Start() {
 	svr.router.POST("/user/del", svr.userDel)
 	// svr.router.POST("/stat/total", svr.statTotal)
 	// svr.router.POST("/stat/conns", svr.statSessions)
-	go svr.router.Run(conf.Xml.Mgr.ListenIP + ":" + fmt.Sprint(conf.Xml.Mgr.ListenPort))
+	svr.httpSvr = &http.Server{
+		Addr:    conf.Xml.Mgr.ListenIP + ":" + fmt.Sprint(conf.Xml.Mgr.ListenPort),
+		Handler: svr.router,
+	}
+	go func() {
+		if err := svr.httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logrus.Errorf("HTTP listen: %s", err)
+		}
+		svr.stopedChan <- struct{}{}
+	}()
+}
+
+func (svr *Server) Stop() {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	if err := svr.httpSvr.Shutdown(ctx); err != nil {
+		logrus.Errorf("Shutdown http server: %s", err)
+	}
+	<-ctx.Done()
+	logrus.Info("Mgr http server stoped.")
+	svr.stopedChan <- struct{}{}
+}
+
+func (svr *Server) StopedChan() chan struct{} {
+	return svr.stopedChan
 }
 
 func (svr *Server) users(ctx *gin.Context) {
@@ -136,8 +155,11 @@ func (svr *Server) userAdd(ctx *gin.Context) {
 		})
 		return
 	}
-	key := randSeq(8)
-	err := db.AddUser(username, key)
+	password := common.RandStr(8)
+	if len(username) > common.Fixed16 {
+		username = username[:common.Fixed16]
+	}
+	err := db.AddUser(username, password)
 	if err != nil {
 		ctx.JSON(http.StatusOK, responseStruct{
 			Status:  1,
@@ -145,9 +167,14 @@ func (svr *Server) userAdd(ctx *gin.Context) {
 		})
 		return
 	}
-	logrus.Infof("Add user{username:%s, key:%s} success", username, key)
+	logrus.Infof("Add user(%s) success", username)
+	userData := userInfo{
+		Username: username,
+		Password: password,
+	}
 	ctx.JSON(http.StatusOK, responseStruct{
 		Status: 0,
+		Data:   userData,
 	})
 }
 
