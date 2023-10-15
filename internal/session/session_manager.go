@@ -177,7 +177,7 @@ func (mgr *SessionManager) handleJoinRoomRequest(addr *net.UDPAddr, data []byte)
 }
 
 func (mgr *SessionManager) handleReflexRequest(addr *net.UDPAddr, data []byte) {
-	response := msg.NewReflexResponse(addr)
+	response := msg.NewReflexResponse(addr, mgr.authenticator.Token())
 	logrus.Debugf("Send ReflexResponse to %s", addr.String())
 	mgr.sendMessage(addr, response.ToBytes())
 }

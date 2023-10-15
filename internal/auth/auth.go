@@ -35,28 +35,76 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"net"
+	"relay/internal/common"
 	"relay/internal/db"
 	"relay/internal/msg"
+	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Authenticator struct {
-	//db *gorm.DB
+	lastToken     string
+	currToken     string
+	validDuration time.Duration
+	stopChan      chan struct{}
+	mutex         sync.Mutex
 }
 
 func NewAuthenticator(path string) *Authenticator {
-	return &Authenticator{
-		//db: db.DB,
+	token := common.RandStr(common.Fixed16)
+	a := &Authenticator{
+		lastToken:     token,
+		currToken:     token,
+		validDuration: time.Second * 5,
+	}
+	go a.changeToken()
+	return a
+}
+
+func (a *Authenticator) changeToken() {
+	ticker := time.NewTicker(a.validDuration)
+	for {
+		select {
+		case <-a.stopChan:
+			return
+		case <-ticker.C:
+			a.mutex.Lock()
+			a.lastToken = a.currToken
+			a.currToken = common.RandStr(common.Fixed16)
+			a.mutex.Unlock()
+		}
 	}
 }
 
+func (a *Authenticator) Stop() {
+	a.stopChan <- struct{}{}
+}
+
+func (a *Authenticator) Token() string {
+	a.mutex.Lock()
+	token := a.currToken
+	a.mutex.Unlock()
+	return token
+}
+
 func (a *Authenticator) Auth(addr *net.UDPAddr, request *msg.CreateRoomRequest, data []byte) int32 {
+	a.mutex.Lock()
+	lastToken := a.lastToken
+	currToken := a.currToken
+	a.mutex.Unlock()
+	// 校验Token
+	if lastToken != request.Token && currToken != request.Token {
+		logrus.Warnf("Packet(user:%s) token invalid", request.Username)
+		return msg.Err_AuthFailed
+	}
 	// 如果不校验IP:Port，其他人捕获到合法的CreateRoomRequest包，发出一模一样的内容，也能使用relay服务器的资源
 	if request.IP != binary.LittleEndian.Uint32(addr.IP) || request.Port != uint32(addr.Port) {
 		logrus.Warnf("Packet(user:%s) address invalid", request.Username)
 		return msg.Err_AddressInvalid
 	}
+	// 校验hmac
 	user, err := db.QueryByUserName(request.Username)
 	if err != nil {
 		return msg.Err_AuthFailed

@@ -65,6 +65,15 @@ func uninitFunc() {
 		}
 		relaySvr = nil
 	}
+	if mgrSvr != nil {
+		mgrSvr.Stop()
+		timer := time.NewTimer(time.Millisecond * 50)
+		select {
+		case <-timer.C:
+		case <-mgrSvr.StopedChan():
+		}
+		mgrSvr = nil
+	}
 }
 
 func dumpFunc() {

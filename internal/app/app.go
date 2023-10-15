@@ -41,27 +41,29 @@ import (
 
 // Run 执行一个非阻塞函数，然后自己进入永久性的wait中，
 // 直到捕获到SIGTERM、SIGINT
-func Run(init func(), uninit func(), dump func()) {
-	defer func() {
-		log.Println(string(debug.Stack()))
-	}()
-	if init != nil {
-		init()
+func Run(initFunc func(), uninitFunc func(), dumpFunc func()) {
+	if initFunc != nil {
+		initFunc()
 	}
-	quit := make(chan os.Signal, 5)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sigint := make(chan os.Signal, 2)
+	sigterm := make(chan os.Signal, 2)
+	signal.Notify(sigint, syscall.SIGINT)
+	signal.Notify(sigterm, syscall.SIGTERM)
 	tick := time.NewTicker(time.Second)
 	for {
 		select {
 		case <-tick.C:
-			if dump != nil {
-				dump()
+			if dumpFunc != nil {
+				dumpFunc()
 			}
-		case <-quit:
-			if uninit != nil {
-				uninit()
+		case <-sigint:
+			if uninitFunc != nil {
+				uninitFunc()
 				return
 			}
+		case <-sigterm:
+			log.Println(string(debug.Stack()))
+			return
 		}
 	}
 }
