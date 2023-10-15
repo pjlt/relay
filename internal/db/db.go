@@ -85,7 +85,7 @@ func AddUser(username string, password string) error {
 	}
 	result := dbConn.Create(&user)
 	if result.Error != nil {
-		logrus.Errorf("Insert record to table 'users' with {username:%s, key:%s} failed", username, password)
+		logrus.Errorf("Insert record to table 'users' with {username:%s, key:*******} failed", username)
 		return result.Error
 	}
 	return nil
