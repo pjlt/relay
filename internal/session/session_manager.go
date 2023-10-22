@@ -47,12 +47,18 @@ type SessionManager struct {
 	addrToSessions map[string]*Session
 	roomToSessions map[string]*Session
 	sendMessage    SendFunc
-	authenticator  *auth.Authenticator
+	authenticator  auth.Authenticator
 	lastClenupTime time.Time
 }
 
 func NewManager() *SessionManager {
-	authenticator := auth.NewAuthenticator(conf.Xml.DB.Path)
+	var authenticator auth.Authenticator
+	if conf.Xml.Auth.UseDB {
+		authenticator = auth.NewDBAuthenticator(conf.Xml.Auth.DB)
+	} else {
+		authenticator = auth.NewXmlAuthenticator()
+	}
+
 	if authenticator == nil {
 		return nil
 	}

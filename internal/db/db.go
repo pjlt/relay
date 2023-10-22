@@ -49,9 +49,12 @@ type User struct {
 }
 
 func init() {
-	db, err := gorm.Open(sqlite.Open(conf.Xml.DB.Path), &gorm.Config{})
+	if !conf.Xml.Auth.UseDB {
+		return
+	}
+	db, err := gorm.Open(sqlite.Open(conf.Xml.Auth.DB), &gorm.Config{})
 	if err != nil {
-		panic(fmt.Sprintf("Failed to open sqlite database(%s): %v", conf.Xml.DB.Path, err))
+		panic(fmt.Sprintf("Failed to open sqlite database(%s): %v", conf.Xml.Auth.DB, err))
 	}
 	db.AutoMigrate(&User{})
 	dbConn = db

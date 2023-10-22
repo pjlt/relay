@@ -46,7 +46,7 @@ const defaultXmlConfig = `
         <path>log</path>
         <prefix>relay</prefix>
         <level>info</level>
-		<maxsize>10</maxsize>
+        <maxsize>10</maxsize>
         <maxage>30</maxage>
     </log>
 
@@ -56,14 +56,26 @@ const defaultXmlConfig = `
     </net>
 
     <mgr>
+        <enable>false</enable>
         <ip>0.0.0.0</ip>
         <port>19001</port>
-		<mode>release</mode>
+        <mode>release</mode>
     </mgr>
 
-    <db>
-        <path>user.db</path>
-    </db>
+    <auth>
+		<use_db>false</use_db>
+		<db>user.db</db>
+		<users>
+			<user>
+				<username>user1</username>
+				<password>password1</password>
+			</user>
+			<user>
+				<username>user2</username>
+				<password>password2</password>
+			</user>
+		</users>
+    </auth>
 
 </relay>
 `
@@ -71,10 +83,10 @@ const defaultXmlConfig = `
 var Xml relayConf
 
 type relayConf struct {
-	Log logConf `xml:"log"`
-	Net netConf `xml:"net"`
-	Mgr mgrConf `xml:"mgr"`
-	DB  dbConf  `xml:"db"`
+	Log  logConf  `xml:"log"`
+	Net  netConf  `xml:"net"`
+	Mgr  mgrConf  `xml:"mgr"`
+	Auth authConf `xml:"auth"`
 }
 
 type logConf struct {
@@ -91,13 +103,21 @@ type netConf struct {
 }
 
 type mgrConf struct {
+	Enable     bool   `xml:"enable"`
 	ListenPort uint16 `xml:"port"`
 	ListenIP   string `xml:"ip"`
 	Mode       string `xml:"mode"`
 }
 
-type dbConf struct {
-	Path string `xml:"path"`
+type userEntry struct {
+	Username string `xml:"username"`
+	Password string `xml:"password"`
+}
+
+type authConf struct {
+	UseDB bool        `xml:"use_db"`
+	DB    string      `xml:"db"`
+	Users []userEntry `xml:"users>user"`
 }
 
 func init() {
