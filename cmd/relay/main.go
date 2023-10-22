@@ -33,6 +33,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path"
 	"relay/internal/app"
 	"relay/internal/conf"
@@ -51,8 +52,14 @@ var mgrSvr *mgr.Server
 func initFunc() {
 	relaySvr = server.New(conf.Xml.Net.ListenIP, conf.Xml.Net.ListenPort)
 	relaySvr.Start()
-	mgrSvr = mgr.New()
-	mgrSvr.Start()
+	if conf.Xml.Mgr.Enable {
+		if !conf.Xml.Auth.UseDB {
+			logrus.Error("You can't enable Mgr withou database!")
+			os.Exit(-1)
+		}
+		mgrSvr = mgr.New()
+		mgrSvr.Start()
+	}
 }
 
 func uninitFunc() {

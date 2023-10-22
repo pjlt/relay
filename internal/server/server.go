@@ -57,11 +57,15 @@ func New(ip string, port uint16) *Server {
 		logrus.Errorf("ListenUDP on %s:%d failed: %v", ip, port, err)
 		return nil
 	}
+	sessionMgr := session.NewManager()
+	if sessionMgr == nil {
+		return nil
+	}
 	svr := &Server{
 		socket:     socket,
 		stopChan:   make(chan struct{}),
 		stopedChan: make(chan struct{}, 2),
-		sessionMgr: session.NewManager(),
+		sessionMgr: sessionMgr,
 	}
 	svr.sessionMgr.SetSendFunc(svr.sendMessage)
 	return svr
