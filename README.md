@@ -14,6 +14,8 @@ relay -c /path/to/relay.xml
 ```
 其中配置`-c /path/to/relay.xml`是可选，如果不提供配置文件，则使用默认配置。配置文件的格式参考`cfg/relay-example.xml`。
 
+注意，需要在服务器开放relay.xml所填写的UDP端口。
+
 ## 验证
 向`relay`申请中继需要验证，验证使用的`username/password`有两种配置方式，默认通过配置文件配置，请参考`cfg/relay-example.xml`。
 
