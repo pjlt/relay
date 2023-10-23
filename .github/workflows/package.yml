@@ -9,7 +9,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: ubuntu-20.04
+    runs-on: windows-2022
     steps:
     - uses: actions/checkout@v3
 
@@ -20,8 +20,8 @@ jobs:
 
     - name: Build
       run: |
-        env GOOS=linux GOARCH=amd64 go build -o relay-linux ./cmd/relay
-        env GOOS=windows GOARCH=amd64 go build -o relay-win.exe ./cmd/relay
+        $Env:GOOS="linux"; $Env:GOARCH="amd64"; go build -o relay-linux ./cmd/relay
+        $Env:GOOS="windows"; $Env:GOARCH="amd64"; go build -o relay-win.exe ./cmd/relay
 
     - name: Release
       uses: softprops/action-gh-release@v1
