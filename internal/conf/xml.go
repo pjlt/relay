@@ -37,7 +37,7 @@ import (
 	"os"
 )
 
-const defaultXmlPath = "/path/to/relay.xml"
+const defaultXmlPath = "relay.xml"
 const defaultXmlConfig = `
 <?xml version="1.0" encoding="UTF-8" ?>
 <relay>
